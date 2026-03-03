@@ -6,32 +6,58 @@
     <title>Acceso Pasillo</title>
     <style>
         body { font-family: sans-serif; text-align: center; background: #0f172a; color: white; padding: 50px 20px; }
-        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 350px; margin: auto; }
+        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 350px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        h2 { color: #38bdf8; margin-bottom: 20px; }
         .btn { 
             display: block; width: 100%; margin: 12px 0; padding: 18px; 
             font-size: 1.1rem; border: none; border-radius: 12px; 
-            background: #334155; color: white; font-weight: 600; cursor: pointer;
+            background: #334155; color: white; font-weight: 600; cursor: pointer; transition: 0.3s;
         }
-        .btn:active { background: #38bdf8; }
-        #status { margin-top: 20px; color: #4ade80; display: none; }
+        .btn:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; border: 1px solid #334155; }
+        .btn:active:not(:disabled) { background: #38bdf8; transform: scale(0.96); }
+        #status { margin-top: 20px; font-weight: bold; min-height: 24px; }
+        .cooldown { color: #fbbf24; }
+        .success { color: #4ade80; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
-        <button class="btn" onclick="tocar('1A')">Departamento 1A</button>
-        <button class="btn" onclick="tocar('2B')">Departamento 2B</button>
-        <button class="btn" onclick="tocar('3C')">Departamento 3C</button>
-        <div id="status">Enviando...</div>
+        <div id="lista-botones">
+            <button class="btn" onclick="tocar('4', this)">Interno 4</button>
+        </div>
+        <div id="status"></div>
     </div>
+
     <script>
-        function tocar(depto) {
-            document.getElementById('status').style.display = 'block';
-            // IMPORTANTE: Solo usamos /api/timbre para que Vercel lo encuentre solito
+        function tocar(depto, botonPresionado) {
+            const status = document.getElementById('status');
+            const botones = document.querySelectorAll('.btn');
+            
+            botones.forEach(b => b.disabled = true);
+            status.className = 'success';
+            status.innerText = "Llamando...";
+            
             fetch(`/api/timbre?depto=${depto}`)
             .then(() => {
-                document.getElementById('status').innerText = "✅ Enviado";
-                setTimeout(() => { document.getElementById('status').style.display = 'none'; }, 3000);
+                status.innerText = "✅ Enviado";
+                
+                let segundos = 60;
+                const intervalo = setInterval(() => {
+                    segundos--;
+                    status.className = 'cooldown';
+                    status.innerText = `Esperá ${segundos}s para reintentar`;
+                    
+                    if (segundos <= 0) {
+                        clearInterval(intervalo);
+                        status.innerText = "";
+                        botones.forEach(b => b.disabled = false);
+                    }
+                }, 1000);
+            })
+            .catch(() => {
+                status.innerText = "❌ Error";
+                botones.forEach(b => b.disabled = false);
             });
         }
     </script>
