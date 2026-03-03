@@ -3,48 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timbre Digital</title>
+    <title>Acceso Pasillo</title>
     <style>
-        body { font-family: -apple-system, sans-serif; text-align: center; background: #1a1a1a; color: white; padding: 40px 20px; }
-        .container { max-width: 400px; margin: auto; }
-        h1 { font-size: 1.5rem; margin-bottom: 10px; color: #00d1b2; }
-        p { color: #aaa; margin-bottom: 30px; }
+        body { font-family: sans-serif; text-align: center; background: #0f172a; color: white; padding: 50px 20px; }
+        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 350px; margin: auto; }
         .btn { 
-            display: block; width: 100%; padding: 20px; margin: 10px 0;
-            font-size: 1.2rem; font-weight: bold; border: none; border-radius: 12px;
-            background: #333; color: white; cursor: pointer; transition: 0.2s;
+            display: block; width: 100%; margin: 12px 0; padding: 18px; 
+            font-size: 1.1rem; border: none; border-radius: 12px; 
+            background: #334155; color: white; font-weight: 600; cursor: pointer;
         }
-        .btn:active { transform: scale(0.98); background: #444; }
-        #status { margin-top: 20px; padding: 15px; border-radius: 8px; display: none; }
-        .success { display: block !important; background: #23d160; color: white; }
+        .btn:active { background: #38bdf8; }
+        #status { margin-top: 20px; color: #4ade80; display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔔 Timbre de Pasillo</h1>
-        <p>Seleccione el departamento para llamar</p>
-        
-        <button class="btn" onclick="llamar('1A')">Departamento 1A</button>
-        <button class="btn" onclick="llamar('2B')">Departamento 2B</button>
-        <button class="btn" onclick="llamar('3C')">Departamento 3C</button>
-
-        <div id="status">Llamada enviada...</div>
+    <div class="card">
+        <h2>🔔 Timbre Digital</h2>
+        <button class="btn" onclick="tocar('1A')">Departamento 1A</button>
+        <button class="btn" onclick="tocar('2B')">Departamento 2B</button>
+        <button class="btn" onclick="tocar('3C')">Departamento 3C</button>
+        <div id="status">Enviando...</div>
     </div>
-
     <script>
-        async function llamar(depto) {
-            const statusDiv = document.getElementById('status');
-            // AQUÍ USAMOS TU URL DE VERCEL (pero solo la parte base)
-            const baseApi = "https://timbresaav2251-290udwv11-aguserfas-projects.vercel.app/api/timbre";
-            
-            try {
-                await fetch(`${baseApi}?depto=${depto}`);
-                statusDiv.innerText = "✅ Timbre sonando en " + depto;
-                statusDiv.className = "success";
-                setTimeout(() => { statusDiv.className = ""; }, 4000);
-            } catch (err) {
-                alert("Error al conectar. Intente de nuevo.");
-            }
+        function tocar(depto) {
+            document.getElementById('status').style.display = 'block';
+            // IMPORTANTE: Solo usamos /api/timbre para que Vercel lo encuentre solito
+            fetch(`/api/timbre?depto=${depto}`)
+            .then(() => {
+                document.getElementById('status').innerText = "✅ Enviado";
+                setTimeout(() => { document.getElementById('status').style.display = 'none'; }, 3000);
+            });
         }
     </script>
 </body>
