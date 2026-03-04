@@ -5,40 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timbre Digital - Saavedra 2251</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #0f172a; color: white; padding: 20px; margin: 0; }
-        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; border: 1px solid #334155; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
-        h2 { color: #38bdf8; margin-bottom: 10px; font-size: 1.8rem; }
-        .aviso-demora { color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px; line-height: 1.4; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background: #0f172a; color: white; padding: 20px; margin: 0; }
+        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; border: 1px solid #334155; box-shadow: 0 10px 15px rgba(0,0,0,0.5); }
+        h2 { color: #38bdf8; margin-bottom: 10px; }
+        .aviso-demora { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
         
-        #lista-botones { display: grid; gap: 15px; }
-        
+        #lista-botones { display: grid; gap: 12px; }
         .btn { 
-            display: block; width: 100%; padding: 18px; 
-            font-size: 1.2rem; border: none; border-radius: 12px; 
-            background: #334155; color: white; font-weight: bold; 
-            cursor: pointer; transition: 0.3s;
+            display: block; width: 100%; padding: 18px; font-size: 1.2rem; 
+            border: none; border-radius: 12px; background: #334155; color: white; 
+            font-weight: bold; cursor: pointer; transition: 0.3s;
         }
         .btn:hover:not(:disabled) { background: #475569; border: 1px solid #38bdf8; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; background: #1e293b; border: 1px solid #334155; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .msg-box { 
-            margin-top: 15px; padding: 15px; background: #111827; 
-            border-radius: 12px; border: 1px dashed #38bdf8; 
-            animation: fadeIn 0.5s;
+        /* Cuadro de respuesta del vecino */
+        #respuesta-vecino {
+            display: none; margin-top: 20px; padding: 20px; 
+            background: #0369a1; border: 2px solid #38bdf8; 
+            border-radius: 15px; animation: bounce 0.5s infinite alternate;
         }
-        input { 
-            width: 90%; padding: 12px; border-radius: 8px; border: 1px solid #334155; 
-            background: #1e293b; color: white; margin-bottom: 10px; outline: none;
-        }
-        input:focus { border-color: #38bdf8; }
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.05); } }
+
+        .msg-box { margin-top: 15px; padding: 10px; background: #111827; border-radius: 10px; border: 1px dashed #38bdf8; }
+        input { width: 85%; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: white; margin-bottom: 5px; }
+        .btn-enviar { background: #0ea5e9; font-size: 0.9rem; padding: 8px; }
         
-        .btn-enviar { background: #0ea5e9; font-size: 1rem; padding: 10px; margin-top: 5px; }
-        
-        #status { margin-top: 20px; font-weight: bold; min-height: 24px; font-size: 1.1rem; }
+        #status { margin-top: 15px; font-weight: bold; min-height: 24px; }
         .success { color: #4ade80; }
         .error { color: #f87171; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -46,55 +41,55 @@
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
         <div class="aviso-demora">
-            ⚠️ La notificación puede demorar aprox. 30 segundos en llegar al celular. Por favor, aguarde.
+            ⚠️ El aviso puede demorar 30s. Por favor, aguarde respuesta en esta pantalla.
         </div>
         
         <div id="lista-botones">
-            <p>Buscando internos...</p>
+            <p>Cargando internos...</p>
         </div>
+
+        <div id="respuesta-vecino">
+            <small>Respuesta del interno:</small>
+            <div id="texto-respuesta" style="font-size: 1.5rem; font-weight: bold; margin-top: 5px;"></div>
+        </div>
+
         <div id="status"></div>
     </div>
 
     <script>
-        // Cargar botones al inicio
+        let intervaloCheck = null;
+
+        // 1. Cargar botones
         async function cargarBotones() {
             const listaDiv = document.getElementById('lista-botones');
             try {
                 const res = await fetch('/api/timbre');
                 const deptos = await res.json();
                 listaDiv.innerHTML = "";
-                
-                if (deptos.length === 0) {
-                    listaDiv.innerHTML = "<p style='color: #94a3b8;'>No hay internos registrados.</p>";
-                    return;
-                }
-
                 deptos.forEach(d => {
-                    const cont = document.createElement('div');
-                    cont.id = `cont-${d}`;
-                    cont.innerHTML = `<button class="btn" id="btn-${d}" onclick="tocarTimbre('${d}')">Interno ${d}</button>`;
-                    listaDiv.appendChild(cont);
+                    const div = document.createElement('div');
+                    div.id = `cont-${d}`;
+                    div.innerHTML = `<button class="btn" id="btn-${d}" onclick="tocarTimbre('${d}')">Interno ${d}</button>`;
+                    listaDiv.appendChild(div);
                 });
-            } catch (e) {
-                listaDiv.innerHTML = "<p class='error'>Error de conexión</p>";
-            }
+            } catch (e) { listaDiv.innerHTML = "Error de conexión"; }
         }
 
-        // Tocar el timbre
+        // 2. Tocar Timbre
         async function tocarTimbre(depto) {
             const btn = document.getElementById(`btn-${depto}`);
             const status = document.getElementById('status');
             const cont = document.getElementById(`cont-${depto}`);
             
             btn.disabled = true;
-            status.innerText = "Enviando aviso...";
+            status.innerText = "Llamando...";
             status.className = "";
 
             try {
                 const res = await fetch(`/api/timbre?depto=${depto}`);
                 if (res.ok) {
                     status.className = "success";
-                    status.innerText = "✅ Aviso enviado. Aguarde respuesta.";
+                    status.innerText = "✅ Avisado. Aguarde aquí.";
 
                     // Mostrar cuadro de mensaje opcional
                     if (!document.getElementById(`box-${depto}`)) {
@@ -102,54 +97,60 @@
                         box.id = `box-${depto}`;
                         box.className = 'msg-box';
                         box.innerHTML = `
-                            <input type="text" id="input-${depto}" placeholder="¿Querés dejar un mensaje de texto?">
-                            <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar Mensaje</button>
+                            <input type="text" id="input-${depto}" placeholder="¿Querés dejar un mensaje?">
+                            <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar</button>
                         `;
                         cont.appendChild(box);
                     }
 
-                    // Timer visual de 30s
-                    let segundos = 30;
+                    // EMPEZAR A BUSCAR RESPUESTA DEL VECINO
+                    iniciarEscucha(depto);
+
+                    // Timer 60 segundos para resetear
+                    let segundos = 60;
                     const originalText = btn.innerText;
                     const intervalo = setInterval(() => {
                         segundos--;
                         btn.innerText = `Espera ${segundos}s`;
                         if (segundos <= 0) {
                             clearInterval(intervalo);
+                            clearInterval(intervaloCheck); // Dejar de buscar respuestas
                             btn.disabled = false;
                             btn.innerText = originalText;
-                            const box = document.getElementById(`box-${depto}`);
-                            if (box) box.remove();
+                            if (document.getElementById(`box-${depto}`)) document.getElementById(`box-${depto}`).remove();
+                            document.getElementById('respuesta-vecino').style.display = 'none';
                             status.innerText = "";
                         }
                     }, 1000);
-
-                } else { throw new Error(); }
-            } catch (e) {
-                status.className = "error";
-                status.innerText = "❌ Error al enviar";
-                btn.disabled = false;
-            }
+                }
+            } catch (e) { status.innerText = "Error"; btn.disabled = false; }
         }
 
-        // Enviar mensaje opcional
+        // 3. Función que pregunta a la API si el vecino respondió
+        function iniciarEscucha(depto) {
+            if (intervaloCheck) clearInterval(intervaloCheck);
+            
+            intervaloCheck = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/timbre?depto=${depto}&check=1`);
+                    const data = await res.json();
+                    
+                    if (data.msj) {
+                        const cuadro = document.getElementById('respuesta-vecino');
+                        const texto = document.getElementById('texto-respuesta');
+                        texto.innerText = data.msj;
+                        cuadro.style.display = 'block';
+                    }
+                } catch (e) { console.error("Error chequeando respuesta"); }
+            }, 3000); // Pregunta cada 3 segundos
+        }
+
         async function enviarMensaje(depto) {
             const input = document.getElementById(`input-${depto}`);
             const texto = input.value.trim();
-            const status = document.getElementById('status');
-            
             if (!texto) return;
-
-            status.innerText = "Enviando mensaje...";
-            try {
-                const res = await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
-                if (res.ok) {
-                    status.innerText = "✅ Mensaje entregado";
-                    document.getElementById(`box-${depto}`).remove();
-                }
-            } catch (e) {
-                status.innerText = "❌ Error al enviar mensaje";
-            }
+            await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
+            document.getElementById(`box-${depto}`).innerHTML = "✅ Mensaje enviado";
         }
 
         window.onload = cargarBotones;
