@@ -3,114 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timbre Inteligente - Saavedra</title>
+    <title>Timbre Digital</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #0f172a; color: white; padding: 50px 20px; margin: 0; }
-        .card { background: #1e293b; padding: 30px; border-radius: 24px; max-width: 400px; margin: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        h2 { color: #38bdf8; margin-bottom: 10px; font-size: 1.8rem; }
-        p.subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 0.9rem; }
-        
-        #lista-botones { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        
+        body { font-family: sans-serif; text-align: center; background: #0f172a; color: white; padding: 50px 20px; margin: 0; }
+        .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; border: 1px solid #334155; }
+        h2 { color: #38bdf8; margin-bottom: 20px; }
+        #lista-botones { display: grid; gap: 15px; }
         .btn { 
             display: block; width: 100%; padding: 20px; 
-            font-size: 1.2rem; border: none; border-radius: 16px; 
-            background: #334155; color: white; font-weight: 700; 
-            cursor: pointer; transition: all 0.2s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-size: 1.2rem; border: none; border-radius: 12px; 
+            background: #334155; color: white; font-weight: bold; 
+            cursor: pointer; transition: 0.2s; position: relative;
+            overflow: hidden;
         }
+        .btn:hover:not(:disabled) { background: #475569; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; background: #1e293b; border: 1px solid #334155; }
         
-        .btn:hover:not(:disabled) { background: #475569; transform: translateY(-2px); }
-        .btn:active:not(:disabled) { background: #38bdf8; transform: scale(0.95); }
-        .btn:disabled { background: #1e293b; color: #475569; cursor: not-allowed; border: 1px solid #334155; opacity: 0.7; }
+        /* Estilo para el texto de espera dentro del botón */
+        .btn-espera { font-size: 0.8rem; display: block; color: #94a3b8; font-weight: normal; }
         
-        #status { margin-top: 25px; font-weight: 600; min-height: 24px; font-size: 1rem; }
-        .cooldown { color: #fbbf24; }
+        #status { margin-top: 20px; font-weight: bold; min-height: 20px; }
         .success { color: #4ade80; }
-        .loading { color: #94a3b8; font-style: italic; }
+        .error { color: #ef4444; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
-        <p class="subtitle">Seleccioná el interno para llamar</p>
-        
         <div id="lista-botones">
-            <p class="loading">Buscando internos registrados...</p>
+            <p>Cargando internos...</p>
         </div>
-
         <div id="status"></div>
     </div>
 
     <script>
-        // Función que se ejecuta apenas carga la página
         async function cargarBotones() {
             const listaDiv = document.getElementById('lista-botones');
             try {
-                // Pedimos la lista de deptos a nuestra API
                 const res = await fetch('/api/timbre');
                 const deptos = await res.json();
+                listaDiv.innerHTML = "";
                 
-                listaDiv.innerHTML = ""; // Limpiamos el mensaje de carga
-
                 if (deptos.length === 0) {
-                    listaDiv.innerHTML = "<p style='color: #64748b;'>No hay vecinos registrados todavía.</p>";
+                    listaDiv.innerHTML = "<p>No hay internos registrados.</p>";
                     return;
                 }
 
-                // Creamos un botón por cada depto encontrado en la base de datos
                 deptos.forEach(d => {
                     const btn = document.createElement('button');
                     btn.className = 'btn';
-                    btn.innerText = `Interno ${d}`;
+                    btn.id = `btn-${d}`;
+                    btn.innerHTML = `Interno ${d}`;
                     btn.onclick = () => tocarTimbre(d, btn);
                     listaDiv.appendChild(btn);
                 });
             } catch (error) {
-                listaDiv.innerHTML = "<p style='color: #ef4444;'>Error al conectar con el servidor</p>";
+                listaDiv.innerHTML = "<p class='error'>Error de conexión</p>";
             }
         }
 
-        async function tocarTimbre(depto, botonPresionado) {
+        async function tocarTimbre(depto, btn) {
             const status = document.getElementById('status');
-            const todosLosBotones = document.querySelectorAll('.btn');
+            const textoOriginal = btn.innerHTML;
             
-            // Bloqueamos todo para evitar spam
-            todosLosBotones.forEach(b => b.disabled = true);
-            status.className = 'loading';
-            status.innerText = "Llamando...";
+            // Bloqueo solo ESTE botón
+            btn.disabled = true;
+            status.className = '';
+            status.innerText = "Enviando aviso...";
             
             try {
-                const response = await fetch(`/api/timbre?depto=${depto}`);
-                if (response.ok) {
+                const res = await fetch(`/api/timbre?depto=${depto}`);
+                if (res.ok) {
                     status.className = 'success';
-                    status.innerText = "✅ Aviso enviado";
+                    status.innerText = `✅ Aviso enviado al ${depto}`;
                     
-                    // Cuenta regresiva de 60 segundos para seguridad
-                    let segundos = 60;
+                    // Timer de 30 segundos independiente para este botón
+                    let segundos = 30;
                     const intervalo = setInterval(() => {
                         segundos--;
-                        status.className = 'cooldown';
-                        status.innerText = `Esperá ${segundos}s para reintentar`;
-                        
+                        btn.innerHTML = `Interno ${depto} <span class="btn-espera">Esperar ${segundos}s</span>`;
                         if (segundos <= 0) {
                             clearInterval(intervalo);
-                            status.innerText = "";
-                            todosLosBotones.forEach(b => b.disabled = false);
+                            btn.disabled = false;
+                            btn.innerHTML = textoOriginal;
                         }
                     }, 1000);
+
                 } else {
                     throw new Error();
                 }
             } catch (e) {
-                status.className = '';
-                status.innerText = "❌ No se pudo llamar";
-                todosLosBotones.forEach(b => b.disabled = false);
+                status.className = 'error';
+                status.innerText = "❌ Error al llamar";
+                btn.disabled = false;
             }
         }
 
-        // Ejecutar al cargar
         window.onload = cargarBotones;
     </script>
 </body>
