@@ -1,3 +1,9 @@
 {
-  "type": "module"
+  "name": "timbre-saavedra",
+  "version": "1.0.0",
+  "description": "Sistema de timbre dinámico con registro de vecinos",
+  "main": "api/timbre.js",
+  "dependencies": {
+    "@vercel/kv": "latest"
+  }
 }
