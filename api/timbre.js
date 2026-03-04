@@ -2,20 +2,21 @@ import { Redis } from '@upstash/redis';
 
 export default async function handler(req, res) {
     const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-    const ADMIN_ID = process.env.TELEGRAM_CHAT_ID;
+    const ADMIN_ID = process.env.TELEGRAM_CHAT_ID; // Tu ID personal configurado en Vercel
 
     const redis = new Redis({
         url: process.env.KV_REST_API_URL || process.env.REDIS_URL,
         token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
     });
 
+    // --- 1. MENSAJES DE TEXTO DESDE TELEGRAM ---
     if (req.body && req.body.message) {
         const msg = req.body.message.text;
         const chatId = req.body.message.chat.id;
 
         if (!msg) return res.status(200).send('ok');
 
-        // --- 1. ALTA ---
+        // COMANDO ALTA: /alta 1A
         if (msg.startsWith('/alta')) {
             const depto = msg.split(' ')[1];
             if (!depto) {
@@ -28,39 +29,48 @@ export default async function handler(req, res) {
                 lista.push(depto);
                 await redis.set('lista_deptos', lista.sort());
             }
-            await enviarMensaje(BOT_TOKEN, chatId, `✅ ¡Listo! El **Interno ${depto}** ya está en la web.`);
+            await enviarMensaje(BOT_TOKEN, chatId, `✅ ¡Listo! El **Interno ${depto}** ya aparece en la web.`);
             return res.status(200).send('ok');
         }
 
-        // --- 2. BAJA ---
+        // COMANDO BAJA (CON MODO ADMIN)
         if (msg === '/baja') {
             const lista = await redis.get('lista_deptos') || [];
-            const misDeptos = [];
-            for (const d of lista) {
-                const owner = await redis.get(`owner:${d}`);
-                if (String(owner) === String(chatId)) misDeptos.push(d);
+            let misDeptos = [];
+
+            // Si el que escribe es el ADMIN, ve todo. Si no, solo lo suyo.
+            if (String(chatId) === String(ADMIN_ID)) {
+                misDeptos = lista;
+                await enviarMensaje(BOT_TOKEN, chatId, "👑 **Modo Administrador**: Podés borrar cualquier interno del pasillo.");
+            } else {
+                for (const d of lista) {
+                    const owner = await redis.get(`owner:${d}`);
+                    if (String(owner) === String(chatId)) misDeptos.push(d);
+                }
             }
+
             if (misDeptos.length === 0) {
-                await enviarMensaje(BOT_TOKEN, chatId, "No tenés internos registrados a tu nombre.");
+                await enviarMensaje(BOT_TOKEN, chatId, "No hay internos registrados para mostrar.");
                 return res.status(200).send('ok');
             }
+
             const botones = misDeptos.map(d => ([{ text: `Borrar ${d}`, callback_data: `borrar_${d}` }]));
+            
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: chatId,
-                    text: "Seleccioná cuál querés eliminar:",
+                    text: "Seleccioná cuál querés eliminar de la web:",
                     reply_markup: { inline_keyboard: botones }
                 })
             });
             return res.status(200).send('ok');
         }
 
-        // --- 3. CUALQUIER OTRA COSA (Instrucciones) ---
-        // Si no entró en alta ni en baja, le mandamos la ayuda
-        const ayuda = "👋 **Hola! Soy el asistente del Timbre Digital.**\n\n" +
-                      "Para aparecer en la web del pasillo, enviame:\n" +
+        // AYUDA AUTOMÁTICA
+        const ayuda = "👋 **¡Hola! Soy el asistente del Timbre Digital.**\n\n" +
+                      "Para aparecer en la web, enviame:\n" +
                       "🔹 `/alta [tu-depto]` (Ej: `/alta 1A`)\n\n" +
                       "Para borrarte:\n" +
                       "🔹 `/baja`";
@@ -68,7 +78,7 @@ export default async function handler(req, res) {
         return res.status(200).send('ok');
     }
 
-    // --- CALLBACK DE BORRADO ---
+    // --- 2. BOTONES DE BORRADO (CALLBACKS) ---
     if (req.body && req.body.callback_query) {
         const data = req.body.callback_query.data;
         const chatId = req.body.callback_query.message.chat.id;
@@ -80,6 +90,7 @@ export default async function handler(req, res) {
             let lista = await redis.get('lista_deptos') || [];
             lista = lista.filter(item => item !== depto);
             await redis.set('lista_deptos', lista);
+            
             await enviarMensaje(BOT_TOKEN, chatId, `🗑️ Interno ${depto} eliminado.`);
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
                 method: 'POST',
@@ -90,14 +101,21 @@ export default async function handler(req, res) {
         return res.status(200).send('ok');
     }
 
-    // --- LÓGICA WEB ---
-    const { depto } = req.query;
+    // --- 3. LÓGICA DE LA WEB (CUANDO ALGUIEN TOCA EL TIMBRE) ---
+    const { depto, msg } = req.query;
+
     if (!depto) {
         const botones = await redis.get('lista_deptos') || [];
         return res.status(200).json(botones);
     }
+
     const destinoId = await redis.get(`owner:${depto}`) || ADMIN_ID;
-    await enviarMensaje(BOT_TOKEN, destinoId, `🔔 **¡TIMBRE!** Alguien está tocando en el Interno ${depto}.`);
+    
+    const textoAlerta = msg 
+        ? `🔔 **¡TIMBRE EN ${depto}!**\n📝 **Mensaje:** _"${msg}"_`
+        : `🔔 **¡TIMBRE!** Alguien está tocando en el **Interno ${depto}**.`;
+
+    await enviarMensaje(BOT_TOKEN, destinoId, textoAlerta);
     return res.status(200).send("ok");
 }
 
