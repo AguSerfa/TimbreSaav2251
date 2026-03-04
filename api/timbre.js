@@ -3,55 +3,64 @@ import { kv } from '@vercel/kv';
 export default async function handler(req, res) {
     const BOT_TOKEN = process.env.BOT_TOKEN;
 
-    // --- CASO A: WEBHOOK DE TELEGRAM (Registro de vecinos) ---
-    // Esto se activa cuando alguien le escribe al BOT
+    // --- 1. REGISTRO DE VECINOS (Vía Telegram Webhook) ---
+    // Esto se activa cuando un vecino le escribe al Bot: /alta 4
     if (req.body && req.body.message) {
         const msg = req.body.message.text;
         const chatId = req.body.message.chat.id;
 
-        if (msg.startsWith('/alta')) {
-            const depto = msg.split(' ')[1]; // Saca el número después de /alta
-            if (!depto) return res.status(200).send();
+        if (msg && msg.startsWith('/alta')) {
+            const depto = msg.split(' ')[1]; // Extrae el número/letra después de /alta
+            
+            if (!depto) {
+                await enviarTelegram(chatId, "⚠️ Por favor, indicá el interno. Ejemplo: /alta 4", BOT_TOKEN);
+                return res.status(200).send('ok');
+            }
 
-            // Guardamos: el ID del vecino para ese depto Y agregamos el depto a la lista de botones
+            // Guardamos quién es el dueño del depto (ID de Telegram)
             await kv.set(`owner:${depto}`, chatId); 
             
-            let lista = await kv.get('lista_deptos') || ['4'];
+            // Agregamos el depto a la lista global de botones
+            let lista = await kv.get('lista_deptos') || [];
             if (!lista.includes(depto)) {
                 lista.push(depto);
                 await kv.set('lista_deptos', lista.sort());
             }
 
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chatId, text: `✅ Registrado con éxito en el Interno ${depto}. Recibirás las alertas aquí.` })
-            });
+            await enviarTelegram(chatId, `✅ ¡Listo! Ahora recibirás los avisos del Interno ${depto} aquí.`, BOT_TOKEN);
+            return res.status(200).send('ok');
         }
         return res.status(200).send('ok');
     }
 
-    // --- CASO B: PETICIÓN DE LA WEB (Tocar timbre o Listar botones) ---
+    // --- 2. LISTADO DE BOTONES (Para la Web) ---
+    // Si la web entra sin avisar un depto, le mandamos la lista de botones activos
     const { depto } = req.query;
-
-    // Si no hay depto, devolvemos la lista para dibujar los botones
     if (!depto) {
-        const botones = await kv.get('lista_deptos') || ['4'];
+        const botones = await kv.get('lista_deptos') || [];
         return res.status(200).json(botones);
     }
 
-    // Si hay depto, buscamos quién es el dueño en la DB
-    const vecinoChatId = await kv.get(`owner:${depto}`);
-    const destinoId = vecinoChatId || process.env.CHAT_ID; // Si no hay dueño, te llega a vos por defecto
+    // --- 3. TOCAR EL TIMBRE (Desde la Web) ---
+    // Buscamos quién está registrado para ese depto
+    const destinoId = await kv.get(`owner:${depto}`);
 
-    try {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: destinoId, text: `🔔 ¡Timbre! Alguien llama al Interno ${depto}` })
-        });
-        return res.status(200).send("Enviado");
-    } catch (e) {
-        return res.status(500).send("Error");
+    if (destinoId) {
+        await enviarTelegram(destinoId, `🔔 ¡ATENCIÓN! Alguien está tocando el timbre en el Interno ${depto}.`, BOT_TOKEN);
+        return res.status(200).send("Enviado al vecino");
+    } else {
+        // Si nadie está registrado, te llega a vos (opcional)
+        const ADMIN_ID = process.env.CHAT_ID;
+        await enviarTelegram(ADMIN_ID, `🔔 Timbre en Interno ${depto} (Nadie registrado aún).`, BOT_TOKEN);
+        return res.status(200).send("Enviado al administrador");
     }
+}
+
+// Función auxiliar para no repetir código de envío
+async function enviarTelegram(chatId, mensaje, token) {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: mensaje })
+    });
 }
