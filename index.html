@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timbre Digital - Pasillo</title>
+    <title>Timbre Digital - Saavedra 2251</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #0f172a; color: white; padding: 20px; margin: 0; }
         .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; border: 1px solid #334155; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
-        h2 { color: #38bdf8; margin-bottom: 25px; font-size: 1.8rem; }
+        h2 { color: #38bdf8; margin-bottom: 10px; font-size: 1.8rem; }
+        .aviso-demora { color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px; line-height: 1.4; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+        
         #lista-botones { display: grid; gap: 15px; }
         
         .btn { 
@@ -43,6 +45,10 @@
 
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
+        <div class="aviso-demora">
+            ⚠️ La notificación puede demorar aprox. 30 segundos en llegar al celular. Por favor, aguarde.
+        </div>
+        
         <div id="lista-botones">
             <p>Buscando internos...</p>
         </div>
@@ -50,7 +56,7 @@
     </div>
 
     <script>
-        // 1. Cargar los botones al abrir la página
+        // Cargar botones al inicio
         async function cargarBotones() {
             const listaDiv = document.getElementById('lista-botones');
             try {
@@ -59,7 +65,7 @@
                 listaDiv.innerHTML = "";
                 
                 if (deptos.length === 0) {
-                    listaDiv.innerHTML = "<p style='color: #94a3b8;'>No hay internos registrados todavía.</p>";
+                    listaDiv.innerHTML = "<p style='color: #94a3b8;'>No hay internos registrados.</p>";
                     return;
                 }
 
@@ -70,39 +76,39 @@
                     listaDiv.appendChild(cont);
                 });
             } catch (e) {
-                listaDiv.innerHTML = "<p class='error'>Error al conectar con el servidor</p>";
+                listaDiv.innerHTML = "<p class='error'>Error de conexión</p>";
             }
         }
 
-        // 2. Acción de tocar el timbre
+        // Tocar el timbre
         async function tocarTimbre(depto) {
             const btn = document.getElementById(`btn-${depto}`);
             const status = document.getElementById('status');
             const cont = document.getElementById(`cont-${depto}`);
             
             btn.disabled = true;
-            status.innerText = "Llamando...";
+            status.innerText = "Enviando aviso...";
             status.className = "";
 
             try {
                 const res = await fetch(`/api/timbre?depto=${depto}`);
                 if (res.ok) {
                     status.className = "success";
-                    status.innerText = "✅ Timbre enviado";
+                    status.innerText = "✅ Aviso enviado. Aguarde respuesta.";
 
-                    // Crear cuadro para mensaje opcional
+                    // Mostrar cuadro de mensaje opcional
                     if (!document.getElementById(`box-${depto}`)) {
                         const box = document.createElement('div');
                         box.id = `box-${depto}`;
                         box.className = 'msg-box';
                         box.innerHTML = `
-                            <input type="text" id="input-${depto}" placeholder="¿Querés dejar un mensaje?">
+                            <input type="text" id="input-${depto}" placeholder="¿Querés dejar un mensaje de texto?">
                             <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar Mensaje</button>
                         `;
                         cont.appendChild(box);
                     }
 
-                    // Bloqueo de 30 segundos
+                    // Timer visual de 30s
                     let segundos = 30;
                     const originalText = btn.innerText;
                     const intervalo = setInterval(() => {
@@ -126,7 +132,7 @@
             }
         }
 
-        // 3. Enviar mensaje de texto opcional
+        // Enviar mensaje opcional
         async function enviarMensaje(depto) {
             const input = document.getElementById(`input-${depto}`);
             const texto = input.value.trim();
