@@ -9,63 +9,42 @@ export default async function handler(req, res) {
         token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
     });
 
-    // Manejo de mensajes de Telegram
     if (req.body && req.body.message) {
         const msg = req.body.message.text;
         const chatId = req.body.message.chat.id;
 
         if (!msg) return res.status(200).send('ok');
 
-        // --- COMANDO START / AYUDA ---
-        if (msg === '/start' || msg === '/ayuda') {
-            const texto = "👋 **Bienvenido al Gestor del Timbre**\n\n" +
-                          "Usa estos comandos:\n" +
-                          "🔹 `/alta [nombre]` - Para aparecer en la web (Ej: `/alta 1A`)\n" +
-                          "🔹 `/baja` - Para borrarte de la lista.\n\n" +
-                          "Una vez registrado, cuando alguien toque tu botón en la web, te avisaré por acá.";
-            await enviarMensaje(BOT_TOKEN, chatId, texto);
-            return res.status(200).send('ok');
-        }
-
-        // --- ALTA ---
+        // --- 1. ALTA ---
         if (msg.startsWith('/alta')) {
             const depto = msg.split(' ')[1];
             if (!depto) {
-                await enviarMensaje(BOT_TOKEN, chatId, "❌ Error: Debes poner un nombre. Ej: `/alta 1A`.");
+                await enviarMensaje(BOT_TOKEN, chatId, "❌ Te faltó el nombre. Ejemplo: `/alta 1A`.");
                 return res.status(200).send('ok');
             }
-
             await redis.set(`owner:${depto}`, chatId);
             let lista = await redis.get('lista_deptos') || [];
             if (!lista.includes(depto)) {
                 lista.push(depto);
                 await redis.set('lista_deptos', lista.sort());
             }
-
-            await enviarMensaje(BOT_TOKEN, chatId, `✅ ¡Listo! El interno **${depto}** ya aparece en la web.`);
+            await enviarMensaje(BOT_TOKEN, chatId, `✅ ¡Listo! El **Interno ${depto}** ya está en la web.`);
             return res.status(200).send('ok');
         }
 
-        // --- LISTADO PARA BAJA ---
+        // --- 2. BAJA ---
         if (msg === '/baja') {
             const lista = await redis.get('lista_deptos') || [];
             const misDeptos = [];
-            
-            // Solo mostramos los deptos que pertenecen a ESTE chatId
             for (const d of lista) {
                 const owner = await redis.get(`owner:${d}`);
-                if (String(owner) === String(chatId)) {
-                    misDeptos.push(d);
-                }
+                if (String(owner) === String(chatId)) misDeptos.push(d);
             }
-
             if (misDeptos.length === 0) {
-                await enviarMensaje(BOT_TOKEN, chatId, "No tienes internos registrados a tu nombre.");
+                await enviarMensaje(BOT_TOKEN, chatId, "No tenés internos registrados a tu nombre.");
                 return res.status(200).send('ok');
             }
-
             const botones = misDeptos.map(d => ([{ text: `Borrar ${d}`, callback_data: `borrar_${d}` }]));
-            
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -77,6 +56,16 @@ export default async function handler(req, res) {
             });
             return res.status(200).send('ok');
         }
+
+        // --- 3. CUALQUIER OTRA COSA (Instrucciones) ---
+        // Si no entró en alta ni en baja, le mandamos la ayuda
+        const ayuda = "👋 **Hola! Soy el asistente del Timbre Digital.**\n\n" +
+                      "Para aparecer en la web del pasillo, enviame:\n" +
+                      "🔹 `/alta [tu-depto]` (Ej: `/alta 1A`)\n\n" +
+                      "Para borrarte:\n" +
+                      "🔹 `/baja`";
+        await enviarMensaje(BOT_TOKEN, chatId, ayuda);
+        return res.status(200).send('ok');
     }
 
     // --- CALLBACK DE BORRADO ---
@@ -91,7 +80,6 @@ export default async function handler(req, res) {
             let lista = await redis.get('lista_deptos') || [];
             lista = lista.filter(item => item !== depto);
             await redis.set('lista_deptos', lista);
-
             await enviarMensaje(BOT_TOKEN, chatId, `🗑️ Interno ${depto} eliminado.`);
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
                 method: 'POST',
@@ -108,7 +96,6 @@ export default async function handler(req, res) {
         const botones = await redis.get('lista_deptos') || [];
         return res.status(200).json(botones);
     }
-
     const destinoId = await redis.get(`owner:${depto}`) || ADMIN_ID;
     await enviarMensaje(BOT_TOKEN, destinoId, `🔔 **¡TIMBRE!** Alguien está tocando en el Interno ${depto}.`);
     return res.status(200).send("ok");
