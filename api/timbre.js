@@ -2,14 +2,14 @@ import { Redis } from '@upstash/redis';
 
 export default async function handler(req, res) {
     const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-    const ADMIN_ID = process.env.TELEGRAM_CHAT_ID; // Tu ID personal configurado en Vercel
+    const ADMIN_ID = process.env.TELEGRAM_CHAT_ID;
 
     const redis = new Redis({
         url: process.env.KV_REST_API_URL || process.env.REDIS_URL,
         token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
     });
 
-    // --- 1. MENSAJES DE TEXTO DESDE TELEGRAM ---
+    // --- 1. MENSAJES QUE VIENEN DE TELEGRAM ---
     if (req.body && req.body.message) {
         const msg = req.body.message.text;
         const chatId = req.body.message.chat.id;
@@ -33,15 +33,14 @@ export default async function handler(req, res) {
             return res.status(200).send('ok');
         }
 
-        // COMANDO BAJA (CON MODO ADMIN)
+        // COMANDO BAJA (MODO ADMIN)
         if (msg === '/baja') {
             const lista = await redis.get('lista_deptos') || [];
             let misDeptos = [];
 
-            // Si el que escribe es el ADMIN, ve todo. Si no, solo lo suyo.
             if (String(chatId) === String(ADMIN_ID)) {
                 misDeptos = lista;
-                await enviarMensaje(BOT_TOKEN, chatId, "👑 **Modo Administrador**: Podés borrar cualquier interno del pasillo.");
+                await enviarMensaje(BOT_TOKEN, chatId, "👑 **Modo Administrador**: Podés borrar cualquier interno.");
             } else {
                 for (const d of lista) {
                     const owner = await redis.get(`owner:${d}`);
@@ -50,7 +49,7 @@ export default async function handler(req, res) {
             }
 
             if (misDeptos.length === 0) {
-                await enviarMensaje(BOT_TOKEN, chatId, "No hay internos registrados para mostrar.");
+                await enviarMensaje(BOT_TOKEN, chatId, "No hay internos para mostrar.");
                 return res.status(200).send('ok');
             }
 
@@ -61,7 +60,7 @@ export default async function handler(req, res) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: chatId,
-                    text: "Seleccioná cuál querés eliminar de la web:",
+                    text: "Seleccioná cuál querés eliminar:",
                     reply_markup: { inline_keyboard: botones }
                 })
             });
@@ -69,16 +68,15 @@ export default async function handler(req, res) {
         }
 
         // AYUDA AUTOMÁTICA
-        const ayuda = "👋 **¡Hola! Soy el asistente del Timbre Digital.**\n\n" +
-                      "Para aparecer en la web, enviame:\n" +
-                      "🔹 `/alta [tu-depto]` (Ej: `/alta 1A`)\n\n" +
-                      "Para borrarte:\n" +
-                      "🔹 `/baja`";
+        const ayuda = "👋 **Timbre Saavedra 2251**\n\n" +
+                      "Comandos disponibles:\n" +
+                      "🔹 `/alta [nombre]` (Ej: `/alta 1A`)\n" +
+                      "🔹 `/baja` (Para borrarte)";
         await enviarMensaje(BOT_TOKEN, chatId, ayuda);
         return res.status(200).send('ok');
     }
 
-    // --- 2. BOTONES DE BORRADO (CALLBACKS) ---
+    // --- 2. BOTONES DE TELEGRAM (CALLBACKS) ---
     if (req.body && req.body.callback_query) {
         const data = req.body.callback_query.data;
         const chatId = req.body.callback_query.message.chat.id;
@@ -101,7 +99,7 @@ export default async function handler(req, res) {
         return res.status(200).send('ok');
     }
 
-    // --- 3. LÓGICA DE LA WEB (CUANDO ALGUIEN TOCA EL TIMBRE) ---
+    // --- 3. LÓGICA DE LA WEB (ENVÍO DE TIMBRE Y MENSAJES) ---
     const { depto, msg } = req.query;
 
     if (!depto) {
@@ -111,8 +109,9 @@ export default async function handler(req, res) {
 
     const destinoId = await redis.get(`owner:${depto}`) || ADMIN_ID;
     
+    // Si viene con mensaje de texto, lo ponemos clarito
     const textoAlerta = msg 
-        ? `🔔 **¡TIMBRE EN ${depto}!**\n📝 **Mensaje:** _"${msg}"_`
+        ? `🔔 **¡AVISO EN ${depto}!**\n📝 **Mensaje:** _"${msg}"_`
         : `🔔 **¡TIMBRE!** Alguien está tocando en el **Interno ${depto}**.`;
 
     await enviarMensaje(BOT_TOKEN, destinoId, textoAlerta);
