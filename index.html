@@ -22,7 +22,6 @@
         .btn:hover:not(:disabled) { background: #475569; border: 1px solid var(--primary); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Cuadro de Respuesta Animado */
         #respuesta-vecino {
             display: none; margin-top: 20px; padding: 20px; 
             background: #0369a1; border: 2px solid var(--primary); 
@@ -43,7 +42,7 @@
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
         <div class="aviso-demora">
-            ⚠️ El aviso al celular puede demorar.<br><b>Por favor, aguarde respuesta aquí.</b>
+            ⚠️ El aviso puede demorar hasta 30 segundos.<br><b>Por favor, aguarde respuesta aquí.</b>
         </div>
         
         <div id="lista-botones">
@@ -62,7 +61,6 @@
         let intervaloCheck = null;
         let timeoutLimpieza = null;
 
-        // 1. Cargar botones de los vecinos registrados
         async function cargarBotones() {
             const listaDiv = document.getElementById('lista-botones');
             try {
@@ -84,7 +82,6 @@
             } catch (e) { listaDiv.innerHTML = "Error de conexión"; }
         }
 
-        // 2. Tocar el timbre
         async function tocarTimbre(depto) {
             const btn = document.getElementById(`btn-${depto}`);
             const status = document.getElementById('status');
@@ -100,23 +97,21 @@
                     status.className = "success";
                     status.innerText = "✅ Aviso enviado. Aguarde.";
 
-                    // Cuadro opcional para que el visitante escriba algo
                     if (!document.getElementById(`box-${depto}`)) {
                         const box = document.createElement('div');
                         box.id = `box-${depto}`;
                         box.className = 'msg-box';
                         box.innerHTML = `
-                            <input type="text" id="input-${depto}" placeholder="¿Desea dejar un mensaje?">
-                            <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar Mensaje</button>
+                            <input type="text" id="input-${depto}" placeholder="¿Dejar un mensaje?">
+                            <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar</button>
                         `;
                         cont.appendChild(box);
                     }
 
-                    // Empezar a buscar si el vecino responde desde Telegram
                     iniciarEscucha(depto);
 
-                    // Bloquear botón por 45 segundos para evitar spam
-                    let segundos = 45;
+                    // --- CAMBIO AQUÍ: TIMER DE 30 SEGUNDOS ---
+                    let segundos = 30; 
                     const originalText = btn.innerText;
                     const intervalo = setInterval(() => {
                         segundos--;
@@ -134,7 +129,6 @@
             } catch (e) { status.innerText = "Error al llamar"; btn.disabled = false; }
         }
 
-        // 3. Chequea si el vecino escribió algo en Telegram
         function iniciarEscucha(depto) {
             if (intervaloCheck) clearInterval(intervaloCheck);
             
@@ -152,7 +146,6 @@
                         texto.innerText = `"${data.msj}"`;
                         cuadro.style.display = 'block';
 
-                        // Limpiar el cartel automáticamente después de 30 segundos
                         if (timeoutLimpieza) clearTimeout(timeoutLimpieza);
                         timeoutLimpieza = setTimeout(() => {
                             cuadro.style.display = 'none';
@@ -167,7 +160,7 @@
             const texto = input.value.trim();
             if (!texto) return;
             await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
-            document.getElementById(`box-${depto}`).innerHTML = "<span style='color:#4ade80'>✅ Mensaje enviado al vecino</span>";
+            document.getElementById(`box-${depto}`).innerHTML = "<span style='color:#4ade80'>✅ Mensaje enviado</span>";
         }
 
         window.onload = cargarBotones;
