@@ -1,17 +1,16 @@
-import { createClient } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
 export default async function handler(req, res) {
-    // Usamos los nombres EXACTOS de tu captura image_39b095.png
     const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-    const ADMIN_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+    const ADMIN_ID = process.env.TELEGRAM_CHAT_ID;
 
-    // Configuración de la base de datos usando tus variables de Vercel
-    const kv = createClient({
-        url: process.env.KV_REST_API_URL || process.env.STORAGE_KV_REST_API_URL,
-        token: process.env.KV_REST_API_TOKEN || process.env.STORAGE_KV_REST_API_TOKEN,
+    // Conexión automática usando las variables que se crearon recién
+    const redis = new Redis({
+        url: process.env.KV_REST_API_URL || process.env.REDIS_URL,
+        token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
     });
 
-    // --- 1. REGISTRO DE VECINOS ---
+    // 1. LÓGICA DE REGISTRO (Telegram)
     if (req.body && req.body.message) {
         const msg = req.body.message.text;
         const chatId = req.body.message.chat.id;
@@ -20,11 +19,11 @@ export default async function handler(req, res) {
             const depto = msg.split(' ')[1];
             if (!depto) return res.status(200).send('ok');
 
-            await kv.set(`owner:${depto}`, chatId);
-            let lista = await kv.get('lista_deptos') || [];
+            await redis.set(`owner:${depto}`, chatId);
+            let lista = await redis.get('lista_deptos') || [];
             if (!lista.includes(depto)) {
                 lista.push(depto);
-                await kv.set('lista_deptos', lista.sort());
+                await redis.set('lista_deptos', lista.sort());
             }
 
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -32,23 +31,23 @@ export default async function handler(req, res) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chat_id: chatId, text: `✅ Registrado en Interno ${depto}` })
             });
-            return res.status(200).send('ok');
         }
+        return res.status(200).send('ok');
     }
 
-    // --- 2. LISTADO Y TIMBRE ---
+    // 2. LÓGICA DE LA WEB (Botones y Timbre)
     const { depto } = req.query;
     if (!depto) {
-        const botones = await kv.get('lista_deptos') || [];
+        const botones = await redis.get('lista_deptos') || [];
         return res.status(200).json(botones);
     }
 
-    const destinoId = await kv.get(`owner:${depto}`) || ADMIN_CHAT_ID;
+    const destinoId = await redis.get(`owner:${depto}`) || ADMIN_ID;
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: destinoId, text: `🔔 Timbre en Interno ${depto}` })
     });
-    
+
     return res.status(200).send("ok");
 }
