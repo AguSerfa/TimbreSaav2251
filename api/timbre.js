@@ -146,68 +146,39 @@ export default async function handler(req, res) {
             await enviarMensaje(BOT_TOKEN, chatId, txt);
         }
 
-       else if (data.startsWith('borrar_')) {
-    const d = data.replace('borrar_', '');
-    
-    // 1. Traemos la lista de dueños. Si no existe, usamos un array vacío.
-    let ows = await redis.get(`owners:${d}`) || [];
-    
-    // 2. Identificamos al creador (el primero de la lista).
-    const creatorId = ows.length > 0 ? String(ows[0]) : null;
-    const currentChatId = String(chatId);
-
-    // 3. CASO 1: Es el ADMIN global o es el CREADOR del interno
-    if (isAdmin || currentChatId === creatorId) {
-        // Borrado TOTAL de la base de datos para este interno
-        await redis.del(`owners:${d}`);
-        await redis.del(`pass:${d}`);
-        await redis.del(`respuesta:${d}`);
-        
-        // Lo sacamos de la lista global de la web
-        let lista = await redis.get('lista_deptos') || [];
-        const nuevaLista = lista.filter(i => String(i) !== String(d));
-        await redis.set('lista_deptos', nuevaLista);
-
-        await enviarMensaje(BOT_TOKEN, chatId, `🗑️ **Interno ${d} eliminado.**\nEl botón ya no aparecerá en la web y todos los usuarios fueron desvinculados.`);
-    } 
-    
-    // 4. CASO 2: Es un invitado (Miembro)
-    else if (ows.includes(chatId)) {
-        // Solo se borra a sí mismo de la lista de notificaciones
-        const nuevosOwners = ows.filter(id => String(id) !== currentChatId);
-        await redis.set(`owners:${d}`, nuevosOwners);
-
-        await enviarMensaje(BOT_TOKEN, chatId, `👋 **Te has desvinculado del Interno ${d}.**\nYa no recibirás avisos, pero el timbre sigue activo para el resto de los residentes.`);
-    } 
-    
-    // 5. CASO 3: Por las dudas (si el interno ya no existe o ya no estaba ahí)
-    else {
-        await enviarMensaje(BOT_TOKEN, chatId, `⚠️ No tenés permisos para borrar el Interno ${d} o ya no figurás en la lista.`);
-    }
-}
+        else if (data === "m_baja") {
+            const lista = await redis.get('lista_deptos') || [];
+            let btns = [];
+            for (const d of lista) {
+                const ows = await redis.get(`owners:${d}`) || [];
+                if (isAdmin || ows.map(String).includes(String(chatId))) {
+                    btns.push([{ text: `❌ Borrar Int. ${d}`, callback_data: `borrar_${d}` }]);
+                }
+            }
+            const txt = btns.length ? "Seleccioná el interno para darte de baja:" : "No tienes internos asociados.";
+            await enviarMensaje(BOT_TOKEN, chatId, txt, { inline_keyboard: btns });
+        }
 
         else if (data.startsWith('borrar_')) {
             const d = data.replace('borrar_', '');
-            // Si es admin borra todo, si es vecino solo se sale él
-            if (isAdmin) {
+            let ows = await redis.get(`owners:${d}`) || [];
+            const creatorId = ows.length > 0 ? String(ows[0]) : null;
+            const currentChatId = String(chatId);
+
+            if (isAdmin || currentChatId === creatorId) {
                 await redis.del(`owners:${d}`, `pass:${d}`, `respuesta:${d}`);
                 let lista = await redis.get('lista_deptos') || [];
-                await redis.set('lista_deptos', lista.filter(i => i !== d));
+                const nuevaLista = lista.filter(i => String(i) !== String(d));
+                await redis.set('lista_deptos', nuevaLista);
+                await enviarMensaje(BOT_TOKEN, chatId, `🗑️ **Interno ${d} eliminado.**\nEl botón ya no aparecerá en la web.`);
             } else {
-                let ows = await redis.get(`owners:${d}`) || [];
-                const nuevos = ows.filter(id => String(id) !== String(chatId));
-                if (nuevos.length === 0) {
-                    await redis.del(`owners:${d}`, `pass:${d}`);
-                    let lista = await redis.get('lista_deptos') || [];
-                    await redis.set('lista_deptos', lista.filter(i => i !== d));
-                } else {
-                    await redis.set(`owners:${d}`, nuevos);
-                }
+                const nuevosOwners = ows.filter(id => String(id) !== currentChatId);
+                await redis.set(`owners:${d}`, nuevosOwners);
+                await enviarMensaje(BOT_TOKEN, chatId, `👋 **Te has desvinculado del Interno ${d}.**`);
             }
-            await enviarMensaje(BOT_TOKEN, chatId, `🗑️ Se ha procesado la baja del interno ${d}.`);
         }
 
-        if (data.startsWith('rsp_')) {
+        else if (data.startsWith('rsp_')) {
             const d = data.replace('rsp_', '');
             await redis.set(`estado:${chatId}`, `respondiendo:${d}`, { ex: 120 });
             await enviarMensaje(BOT_TOKEN, chatId, `✍️ Escribí a continuación el mensaje que querés que vea la visita en la pantalla:`);
@@ -228,7 +199,6 @@ export default async function handler(req, res) {
         return res.status(200).json({ msj: r });
     }
 
-    // REGISTRO DE LOG Y ENVÍO DE ALERTA
     const fecha = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
     const hora = fecha.split(' ')[1] || fecha;
     await redis.lpush('timbre_logs', `🕒 [${hora}] - Llamada al Int. ${depto}`);
