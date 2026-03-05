@@ -14,7 +14,6 @@ export default async function handler(req, res) {
     const { admin, depto, msg, check } = req.query;
 
     if (admin) {
-        // Verificamos si el que pide es el admin (opcional: podés comparar con una clave o con tu ID)
         try {
             const logs = await redis.lrange('timbre_logs', 0, 30);
             return res.status(200).json(logs || []);
@@ -23,7 +22,7 @@ export default async function handler(req, res) {
         }
     }
 
-    // --- 2. MENSAJES DE TELEGRAM (Webhook) ---
+    // --- 2. MENSAJES DE TEXTO (Webhook de Telegram) ---
     if (req.body && req.body.message) {
         const msgTxt = req.body.message.text;
         const chatId = req.body.message.chat.id;
@@ -32,6 +31,7 @@ export default async function handler(req, res) {
 
         const estado = await redis.get(`estado:${chatId}`);
 
+        // Respuesta a la visita
         if (estado && estado.startsWith('respondiendo:')) {
             const d = estado.split(':')[1];
             await redis.set(`respuesta:${d}`, msgTxt, { ex: 90 });
@@ -40,14 +40,17 @@ export default async function handler(req, res) {
             return res.status(200).send('ok');
         }
 
+        // Proceso de Registro (Ingreso de Clave)
         if (estado && estado.startsWith('esperando_pass:')) {
             const d = estado.split(':')[1];
             const passGuardada = await redis.get(`pass:${d}`);
+            
             if (passGuardada && passGuardada !== msgTxt.trim()) {
-                await enviarMensaje(BOT_TOKEN, chatId, "🚫 Clave incorrecta. Registro cancelado.");
+                await enviarMensaje(BOT_TOKEN, chatId, "🚫 **Clave incorrecta.** El registro fue cancelado por seguridad.");
                 await redis.del(`estado:${chatId}`);
                 return res.status(200).send('ok');
             }
+
             if (!passGuardada) await redis.set(`pass:${d}`, msgTxt.trim());
             
             let ows = await redis.get(`owners:${d}`) || [];
@@ -64,10 +67,11 @@ export default async function handler(req, res) {
             }
 
             await redis.del(`estado:${chatId}`);
-            await enviarMensaje(BOT_TOKEN, chatId, `✅ ¡Listo! El interno ${d} ya está activo.`);
+            await enviarMensaje(BOT_TOKEN, chatId, `✅ **¡Registro Exitoso!**\n\nYa estás vinculado al **Interno ${d}**. A partir de ahora, recibirás los avisos de este timbre directamente en este chat.`);
             return res.status(200).send('ok');
         }
 
+        // Menú Principal
         const botones = [
             [{ text: "🏠 Registrarme", callback_data: "m_reg" }, { text: "🗑️ Darme de Baja", callback_data: "m_baja" }],
             [{ text: "🎵 Sonido de Timbre", callback_data: "m_audio" }]
@@ -76,69 +80,116 @@ export default async function handler(req, res) {
             botones.push([{ text: "📋 Ver Lista", callback_data: "m_lista" }, { text: "📜 Ver Logs", callback_data: "m_logs" }]);
         }
 
-        await enviarMensaje(BOT_TOKEN, chatId, isAdmin ? "👑 **Panel Admin**" : "👋 **Timbre Digital**", { inline_keyboard: botones });
+        await enviarMensaje(BOT_TOKEN, chatId, isAdmin ? "👑 **Panel de Administrador**" : "👋 **Timbre Digital - Saavedra 2251**\nSeleccioná una opción:", { inline_keyboard: botones });
         return res.status(200).send('ok');
     }
 
-    // --- 3. CALLBACKS DE TELEGRAM ---
+    // --- 3. CALLBACKS (Botones del Bot) ---
     if (req.body && req.body.callback_query) {
         const data = req.body.callback_query.data;
         const chatId = req.body.callback_query.message.chat.id;
         const isAdmin = String(chatId) === String(ADMIN_ID);
 
+        // Elegir interno para registro
         if (data === "m_reg") {
             const filas = [];
             for (let i = 1; i <= 15; i += 3) {
                 filas.push([
-                    { text: `${i}`, callback_data: `reg_${i}` },
-                    { text: `${i+1}`, callback_data: `reg_${i+1}` },
-                    { text: `${i+2}`, callback_data: `reg_${i+2}` }
+                    { text: `Int. ${i}`, callback_data: `reg_${i}` },
+                    { text: `Int. ${i+1}`, callback_data: `reg_${i+1}` },
+                    { text: `Int. ${i+2}`, callback_data: `reg_${i+2}` }
                 ]);
             }
-            await enviarMensaje(BOT_TOKEN, chatId, "🏠 **¿Interno?**", { inline_keyboard: filas });
+            await enviarMensaje(BOT_TOKEN, chatId, "🏠 **¿En qué número de interno vivís?**", { inline_keyboard: filas });
         } 
         
         else if (data.startsWith('reg_')) {
             const d = data.replace('reg_', '');
             await redis.set(`estado:${chatId}`, `esperando_pass:${d}`, { ex: 300 });
             const existe = await redis.get(`pass:${d}`);
-            await enviarMensaje(BOT_TOKEN, chatId, existe ? `🔐 Interno ${d} activo. Clave:` : `🆕 Interno ${d}. Inventá clave:`);
+            
+            if (existe) {
+                await enviarMensaje(BOT_TOKEN, chatId, `🔐 **El interno ${d} ya tiene dueño.**\n\nPara sumarte a este interno, por favor escribí la clave de acceso de la vivienda:`);
+            } else {
+                await enviarMensaje(BOT_TOKEN, chatId, `🆕 **Vas a dar de alta el interno ${d}.**\n\nPor favor, inventá una clave de seguridad (letras o números) para que otros miembros de tu casa puedan sumarse después:`);
+            }
         }
 
-        else if (data === "m_logs" && isAdmin) {
-            const logs = await redis.lrange('timbre_logs', 0, 15);
-            const txt = logs.length ? "📜 **Últimos logs:**\n" + logs.join('\n') : "No hay logs.";
-            await enviarMensaje(BOT_TOKEN, chatId, txt);
+        else if (data === "m_audio") {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    chat_id: chatId, 
+                    audio: AUDIO_ID, 
+                    caption: "🔔 Este es el sonido que escucharás cuando alguien toque el timbre en la web." 
+                })
+            });
         }
 
         else if (data === "m_lista" && isAdmin) {
             const lista = await redis.get('lista_deptos') || [];
-            let txt = "📋 **Activos:**\n";
+            if (lista.length === 0) return enviarMensaje(BOT_TOKEN, chatId, "No hay internos registrados.");
+
+            let txt = "📋 **REPORTE DE INTERNOS:**\n\n";
             for (const d of lista) {
                 const p = await redis.get(`pass:${d}`);
-                txt += `🏠 Int ${d} | Clave: \`${p}\` \n`;
+                const ows = await redis.get(`owners:${d}`) || [];
+                txt += `🏠 **Interno ${d}**\n   🔑 Clave: \`${p}\` \n   👥 Miembros: ${ows.length}\n   🆔 IDs: \`${ows.join(', ')}\`\n\n`;
             }
-            await enviarMensaje(BOT_TOKEN, chatId, txt || "Vacío.");
+            await enviarMensaje(BOT_TOKEN, chatId, txt);
+        }
+
+        else if (data === "m_logs" && isAdmin) {
+            const logs = await redis.lrange('timbre_logs', 0, 15);
+            const txt = logs.length ? "📜 **Últimos movimientos:**\n" + logs.join('\n') : "No hay actividad reciente.";
+            await enviarMensaje(BOT_TOKEN, chatId, txt);
+        }
+
+        else if (data === "m_baja") {
+            const lista = await redis.get('lista_deptos') || [];
+            let btns = [];
+            for (const d of lista) {
+                const ows = await redis.get(`owners:${d}`) || [];
+                if (isAdmin || ows.map(String).includes(String(chatId))) {
+                    btns.push([{ text: `❌ Borrarme del Interno ${d}`, callback_data: `borrar_${d}` }]);
+                }
+            }
+            const txt = btns.length ? "Seleccioná el interno que querés eliminar o del que te querés desvincular:" : "No tenés internos asociados.";
+            await enviarMensaje(BOT_TOKEN, chatId, txt, { inline_keyboard: btns });
+        }
+
+        else if (data.startsWith('borrar_')) {
+            const d = data.replace('borrar_', '');
+            // Si es admin borra todo, si es vecino solo se sale él
+            if (isAdmin) {
+                await redis.del(`owners:${d}`, `pass:${d}`, `respuesta:${d}`);
+                let lista = await redis.get('lista_deptos') || [];
+                await redis.set('lista_deptos', lista.filter(i => i !== d));
+            } else {
+                let ows = await redis.get(`owners:${d}`) || [];
+                const nuevos = ows.filter(id => String(id) !== String(chatId));
+                if (nuevos.length === 0) {
+                    await redis.del(`owners:${d}`, `pass:${d}`);
+                    let lista = await redis.get('lista_deptos') || [];
+                    await redis.set('lista_deptos', lista.filter(i => i !== d));
+                } else {
+                    await redis.set(`owners:${d}`, nuevos);
+                }
+            }
+            await enviarMensaje(BOT_TOKEN, chatId, `🗑️ Se ha procesado la baja del interno ${d}.`);
         }
 
         if (data.startsWith('rsp_')) {
             const d = data.replace('rsp_', '');
             await redis.set(`estado:${chatId}`, `respondiendo:${d}`, { ex: 120 });
-            await enviarMensaje(BOT_TOKEN, chatId, `✍️ Respuesta para el visitante:`);
-        }
-
-        if (data.startsWith('borrar_')) {
-            const d = data.replace('borrar_', '');
-            await redis.del(`owners:${d}`, `pass:${d}`, `respuesta:${d}`);
-            let lista = await redis.get('lista_deptos') || [];
-            await redis.set('lista_deptos', lista.filter(i => i !== d));
-            await enviarMensaje(BOT_TOKEN, chatId, `🗑️ Borrado.`);
+            await enviarMensaje(BOT_TOKEN, chatId, `✍️ Escribí a continuación el mensaje que querés que vea la visita en la pantalla:`);
         }
 
         return res.status(200).send('ok');
     }
 
-    // --- 4. LÓGICA WEB (Peticiones comunes) ---
+    // --- 4. LÓGICA WEB (Peticiones desde el navegador) ---
     if (!depto) {
         const lista = await redis.get('lista_deptos') || [];
         return res.status(200).json(lista);
@@ -150,10 +201,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ msj: r });
     }
 
-    // CUANDO ALGUIEN TOCA EL TIMBRE:
+    // REGISTRO DE LOG Y ENVÍO DE ALERTA
     const fecha = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
-    const hora = fecha.split(', ')[1] || fecha;
-    await redis.lpush('timbre_logs', `🕒 [${hora}] - Int. ${depto}`);
+    const hora = fecha.split(' ')[1] || fecha;
+    await redis.lpush('timbre_logs', `🕒 [${hora}] - Llamada al Int. ${depto}`);
     await redis.ltrim('timbre_logs', 0, 30);
 
     const owners = await redis.get(`owners:${depto}`) || [];
@@ -163,7 +214,7 @@ export default async function handler(req, res) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: id, 
-                text: msg ? `💬 **Int. ${depto}:**\n_"${msg}"_` : `🔔 **¡Tocaron timbre en el Int. ${depto}!**`,
+                text: msg ? `💬 **Mensaje en Int. ${depto}:**\n_"${msg}"_` : `🔔 **¡Están tocando timbre en el Int. ${depto}!**`,
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: [[{ text: "💬 Responder", callback_data: `rsp_${depto}` }]] }
             })
