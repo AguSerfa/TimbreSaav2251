@@ -146,17 +146,26 @@ export default async function handler(req, res) {
             await enviarMensaje(BOT_TOKEN, chatId, txt);
         }
 
-        else if (data === "m_baja") {
-            const lista = await redis.get('lista_deptos') || [];
-            let btns = [];
-            for (const d of lista) {
-                const ows = await redis.get(`owners:${d}`) || [];
-                if (isAdmin || ows.map(String).includes(String(chatId))) {
-                    btns.push([{ text: `❌ Borrarme del Interno ${d}`, callback_data: `borrar_${d}` }]);
-                }
+        else if (data.startsWith('borrar_')) {
+            const d = data.replace('borrar_', '');
+            let ows = await redis.get(`owners:${d}`) || [];
+            const creatorId = ows[0]; // El primero de la lista siempre es el creador
+            
+            // CASO 1: Es el ADMIN o es el CREADOR del interno
+            if (isAdmin || String(chatId) === String(creatorId)) {
+                // Borrado TOTAL del interno
+                await redis.del(`owners:${d}`, `pass:${d}`, `respuesta:${d}`);
+                let lista = await redis.get('lista_deptos') || [];
+                await redis.set('lista_deptos', lista.filter(i => i !== d));
+                await enviarMensaje(BOT_TOKEN, chatId, `🗑️ **Interno ${d} eliminado por completo.** Ya no aparecerá en la web.`);
+            } 
+            // CASO 2: Es un vecino que se sumó después (Miembro)
+            else {
+                // Solo se desvincula ÉL, el interno sigue vivo
+                const nuevos = ows.filter(id => String(id) !== String(chatId));
+                await redis.set(`owners:${d}`, nuevos);
+                await enviarMensaje(BOT_TOKEN, chatId, `👋 **Te has desvinculado del Interno ${d}.** Ya no recibirás notificaciones, pero el interno sigue activo para el resto de tu familia.`);
             }
-            const txt = btns.length ? "Seleccioná el interno que querés eliminar o del que te querés desvincular:" : "No tenés internos asociados.";
-            await enviarMensaje(BOT_TOKEN, chatId, txt, { inline_keyboard: btns });
         }
 
         else if (data.startsWith('borrar_')) {
