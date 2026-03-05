@@ -146,27 +146,45 @@ export default async function handler(req, res) {
             await enviarMensaje(BOT_TOKEN, chatId, txt);
         }
 
-        else if (data.startsWith('borrar_')) {
-            const d = data.replace('borrar_', '');
-            let ows = await redis.get(`owners:${d}`) || [];
-            const creatorId = ows[0]; // El primero de la lista siempre es el creador
-            
-            // CASO 1: Es el ADMIN o es el CREADOR del interno
-            if (isAdmin || String(chatId) === String(creatorId)) {
-                // Borrado TOTAL del interno
-                await redis.del(`owners:${d}`, `pass:${d}`, `respuesta:${d}`);
-                let lista = await redis.get('lista_deptos') || [];
-                await redis.set('lista_deptos', lista.filter(i => i !== d));
-                await enviarMensaje(BOT_TOKEN, chatId, `🗑️ **Interno ${d} eliminado por completo.** Ya no aparecerá en la web.`);
-            } 
-            // CASO 2: Es un vecino que se sumó después (Miembro)
-            else {
-                // Solo se desvincula ÉL, el interno sigue vivo
-                const nuevos = ows.filter(id => String(id) !== String(chatId));
-                await redis.set(`owners:${d}`, nuevos);
-                await enviarMensaje(BOT_TOKEN, chatId, `👋 **Te has desvinculado del Interno ${d}.** Ya no recibirás notificaciones, pero el interno sigue activo para el resto de tu familia.`);
-            }
-        }
+       else if (data.startsWith('borrar_')) {
+    const d = data.replace('borrar_', '');
+    
+    // 1. Traemos la lista de dueños. Si no existe, usamos un array vacío.
+    let ows = await redis.get(`owners:${d}`) || [];
+    
+    // 2. Identificamos al creador (el primero de la lista).
+    const creatorId = ows.length > 0 ? String(ows[0]) : null;
+    const currentChatId = String(chatId);
+
+    // 3. CASO 1: Es el ADMIN global o es el CREADOR del interno
+    if (isAdmin || currentChatId === creatorId) {
+        // Borrado TOTAL de la base de datos para este interno
+        await redis.del(`owners:${d}`);
+        await redis.del(`pass:${d}`);
+        await redis.del(`respuesta:${d}`);
+        
+        // Lo sacamos de la lista global de la web
+        let lista = await redis.get('lista_deptos') || [];
+        const nuevaLista = lista.filter(i => String(i) !== String(d));
+        await redis.set('lista_deptos', nuevaLista);
+
+        await enviarMensaje(BOT_TOKEN, chatId, `🗑️ **Interno ${d} eliminado.**\nEl botón ya no aparecerá en la web y todos los usuarios fueron desvinculados.`);
+    } 
+    
+    // 4. CASO 2: Es un invitado (Miembro)
+    else if (ows.includes(chatId)) {
+        // Solo se borra a sí mismo de la lista de notificaciones
+        const nuevosOwners = ows.filter(id => String(id) !== currentChatId);
+        await redis.set(`owners:${d}`, nuevosOwners);
+
+        await enviarMensaje(BOT_TOKEN, chatId, `👋 **Te has desvinculado del Interno ${d}.**\nYa no recibirás avisos, pero el timbre sigue activo para el resto de los residentes.`);
+    } 
+    
+    // 5. CASO 3: Por las dudas (si el interno ya no existe o ya no estaba ahí)
+    else {
+        await enviarMensaje(BOT_TOKEN, chatId, `⚠️ No tenés permisos para borrar el Interno ${d} o ya no figurás en la lista.`);
+    }
+}
 
         else if (data.startsWith('borrar_')) {
             const d = data.replace('borrar_', '');
