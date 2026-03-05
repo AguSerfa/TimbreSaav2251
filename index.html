@@ -31,7 +31,7 @@
 
         .msg-box { margin-top: 10px; padding: 12px; background: #111827; border-radius: 12px; border: 1px dashed var(--primary); }
         input { width: 85%; padding: 10px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: white; margin-bottom: 8px; outline: none; }
-        .btn-enviar { background: var(--primary); color: #0f172a; font-size: 0.9rem; padding: 8px; width: auto; display: inline-block; }
+        .btn-enviar { background: var(--primary); color: #0f172a; font-size: 0.9rem; padding: 8px; width: auto; display: inline-block; font-weight: bold; }
         
         #status { margin-top: 15px; font-weight: 500; font-size: 1rem; min-height: 24px; }
         .success { color: #4ade80; }
@@ -46,7 +46,7 @@
         </div>
         
         <div id="lista-botones">
-            <p style="color: #94a3b8;">Buscando internos...</p>
+            <p style="color: #94a3b8;">Buscando internos disponibles...</p>
         </div>
 
         <div id="respuesta-vecino">
@@ -69,7 +69,7 @@
                 listaDiv.innerHTML = "";
                 
                 if (deptos.length === 0) {
-                    listaDiv.innerHTML = "<p style='color:#94a3b8;'>No hay internos registrados.</p>";
+                    listaDiv.innerHTML = "<p style='color:#94a3b8;'>No hay nadie en casa (sin internos registrados).</p>";
                     return;
                 }
 
@@ -88,7 +88,7 @@
             const cont = document.getElementById(`cont-${depto}`);
             
             btn.disabled = true;
-            status.innerText = "Llamando al interno...";
+            status.innerText = "Llamando...";
             status.className = "";
 
             try {
@@ -97,20 +97,21 @@
                     status.className = "success";
                     status.innerText = "✅ Aviso enviado. Aguarde.";
 
+                    // Crear la caja de chat si no existe
                     if (!document.getElementById(`box-${depto}`)) {
                         const box = document.createElement('div');
                         box.id = `box-${depto}`;
                         box.className = 'msg-box';
                         box.innerHTML = `
-                            <input type="text" id="input-${depto}" placeholder="¿Dejar un mensaje?">
-                            <button class="btn btn-enviar" onclick="enviarMensaje('${depto}')">Enviar</button>
+                            <input type="text" id="input-${depto}" placeholder="Escribí un mensaje...">
+                            <button class="btn btn-enviar" id="send-${depto}" onclick="enviarMensaje('${depto}')">Enviar</button>
                         `;
                         cont.appendChild(box);
                     }
 
                     iniciarEscucha(depto);
 
-                    // --- CAMBIO AQUÍ: TIMER DE 30 SEGUNDOS ---
+                    // Timer visual de 30 segundos en el botón
                     let segundos = 30; 
                     const originalText = btn.innerText;
                     const intervalo = setInterval(() => {
@@ -118,15 +119,28 @@
                         btn.innerText = `ESPERE ${segundos}s`;
                         if (segundos <= 0) {
                             clearInterval(intervalo);
-                            clearInterval(intervaloCheck);
                             btn.disabled = false;
                             btn.innerText = originalText;
-                            if (document.getElementById(`box-${depto}`)) document.getElementById(`box-${depto}`).remove();
-                            status.innerText = "";
                         }
                     }, 1000);
                 }
             } catch (e) { status.innerText = "Error al llamar"; btn.disabled = false; }
+        }
+
+        async function enviarMensaje(depto) {
+            const input = document.getElementById(`input-${depto}`);
+            const btnSend = document.getElementById(`send-${depto}`);
+            const texto = input.value.trim();
+            
+            if (!texto) return;
+
+            btnSend.disabled = true;
+            try {
+                await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
+                input.value = ""; // Limpia el input para el próximo mensaje
+                document.getElementById('status').innerText = "✅ Mensaje enviado.";
+            } catch (e) { console.error("Error enviando"); }
+            btnSend.disabled = false;
         }
 
         function iniciarEscucha(depto) {
@@ -146,21 +160,14 @@
                         texto.innerText = `"${data.msj}"`;
                         cuadro.style.display = 'block';
 
+                        // Mantiene la respuesta visible 20 segundos
                         if (timeoutLimpieza) clearTimeout(timeoutLimpieza);
                         timeoutLimpieza = setTimeout(() => {
                             cuadro.style.display = 'none';
-                        }, 30000);
+                        }, 20000);
                     }
-                } catch (e) { console.error("Error buscando respuesta"); }
+                } catch (e) { }
             }, 3000);
-        }
-
-        async function enviarMensaje(depto) {
-            const input = document.getElementById(`input-${depto}`);
-            const texto = input.value.trim();
-            if (!texto) return;
-            await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
-            document.getElementById(`box-${depto}`).innerHTML = "<span style='color:#4ade80'>✅ Mensaje enviado</span>";
         }
 
         window.onload = cargarBotones;
