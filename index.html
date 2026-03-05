@@ -5,35 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timbre Digital - Saavedra 2251</title>
     <style>
-        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; }
+        :root { --primary: #38bdf8; --bg: #0f172a; --card: #1e293b; --accent: #facc15; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; text-align: center; background: var(--bg); color: white; padding: 20px; margin: 0; }
-        .card { background: var(--card); padding: 25px; border-radius: 24px; max-width: 400px; margin: auto; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
         
-        h2 { color: var(--primary); margin-bottom: 5px; font-size: 1.8rem; }
-        .aviso-demora { color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.4; }
+        .card { background: var(--card); padding: 30px 20px; border-radius: 28px; max-width: 450px; margin: auto; border: 1px solid #334155; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
         
-        #lista-botones { display: grid; gap: 12px; margin-top: 10px; }
-        .btn { 
-            display: block; width: 100%; padding: 18px; font-size: 1.1rem; 
-            border: none; border-radius: 16px; background: #334155; color: white; 
-            font-weight: bold; cursor: pointer; transition: all 0.2s;
+        h2 { color: var(--primary); margin-bottom: 15px; font-size: 2.2rem; font-weight: 800; }
+        
+        /* CUADRO DE AVISO MEJORADO */
+        .aviso-caja { 
+            background: rgba(56, 189, 248, 0.1); 
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 20px; 
+            border-radius: 20px; 
+            margin-bottom: 25px; 
+            text-align: left;
         }
-        .btn:active { transform: scale(0.98); }
+
+        .aviso-item { 
+            display: flex; 
+            align-items: flex-start; 
+            margin-bottom: 12px; 
+            font-size: 1.1rem; 
+            line-height: 1.4;
+            color: #e2e8f0;
+        }
+
+        .aviso-item span { margin-right: 10px; font-size: 1.3rem; }
+
+        .importante { 
+            color: var(--accent); 
+            font-weight: bold; 
+            text-transform: uppercase;
+            display: block;
+            margin-top: 10px;
+            text-align: center;
+            border-top: 1px solid rgba(250, 204, 21, 0.2);
+            padding-top: 10px;
+        }
+
+        #lista-botones { display: grid; gap: 15px; margin-top: 10px; }
+        
+        .btn { 
+            display: block; width: 100%; padding: 22px; font-size: 1.3rem; 
+            border: none; border-radius: 20px; background: #334155; color: white; 
+            font-weight: bold; cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        .btn:active { transform: scale(0.96); }
         .btn:hover:not(:disabled) { background: #475569; border: 1px solid var(--primary); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         #respuesta-vecino {
-            display: none; margin-top: 20px; padding: 20px; 
-            background: #0369a1; border: 2px solid var(--primary); 
-            border-radius: 18px; animation: slideIn 0.4s ease-out;
+            display: none; margin-top: 25px; padding: 25px; 
+            background: #0369a1; border: 3px solid var(--primary); 
+            border-radius: 22px; box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+            animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        .msg-box { margin-top: 10px; padding: 12px; background: #111827; border-radius: 12px; border: 1px dashed var(--primary); }
-        input { width: 85%; padding: 10px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: white; margin-bottom: 8px; outline: none; }
-        .btn-enviar { background: var(--primary); color: #0f172a; font-size: 0.9rem; padding: 8px; width: auto; display: inline-block; font-weight: bold; }
         
-        #status { margin-top: 15px; font-weight: 500; font-size: 1rem; min-height: 24px; }
+        @keyframes bounceIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+        .msg-box { margin-top: 15px; padding: 15px; background: #111827; border-radius: 15px; border: 2px dashed var(--primary); }
+        input { width: 80%; padding: 12px; border-radius: 12px; border: 1px solid #334155; background: #1e293b; color: white; font-size: 1rem; outline: none; }
+        .btn-enviar { background: var(--primary); color: #0f172a; font-size: 1rem; padding: 10px 20px; width: auto; border-radius: 12px; font-weight: 900; margin-top: 10px; }
+        
+        #status { margin-top: 20px; font-weight: 600; font-size: 1.1rem; min-height: 28px; }
         .success { color: #4ade80; }
     </style>
 </head>
@@ -41,136 +77,36 @@
 
     <div class="card">
         <h2>🔔 Timbre Digital</h2>
-        <div class="aviso-demora">
-            ⚠️ El aviso puede demorar hasta 30 segundos.<br><b>Por favor, aguarde respuesta aquí.</b>
+        
+        <div class="aviso-caja">
+            <div class="aviso-item">
+                <span>🕒</span> 
+                <div>El aviso tarda <b>30 segundos</b> en llegar al celular del vecino.</div>
+            </div>
+            <div class="aviso-item">
+                <span>💬</span> 
+                <div>Si el vecino responde, su mensaje tardará otros <b>30 segundos</b> en aparecer aquí.</div>
+            </div>
+            <div class="importante">
+                ⚠️ No cierres esta ventana ni salgas del navegador.
+            </div>
         </div>
         
         <div id="lista-botones">
-            <p style="color: #94a3b8;">Buscando internos disponibles...</p>
+            <p style="color: #94a3b8;">Cargando internos...</p>
         </div>
 
         <div id="respuesta-vecino">
-            <small id="nombre-interno-rta" style="text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;"></small>
-            <div id="texto-respuesta" style="font-size: 1.4rem; font-weight: 800; margin-top: 5px;"></div>
+            <small id="nombre-interno-rta" style="text-transform: uppercase; letter-spacing: 1px; font-weight: bold; color: #bae6fd;"></small>
+            <div id="texto-respuesta" style="font-size: 1.6rem; font-weight: 900; margin-top: 10px; line-height: 1.2;"></div>
         </div>
 
         <div id="status"></div>
     </div>
 
     <script>
-        let intervaloCheck = null;
-        let timeoutLimpieza = null;
-
-        async function cargarBotones() {
-            const listaDiv = document.getElementById('lista-botones');
-            try {
-                const res = await fetch('/api/timbre');
-                const deptos = await res.json();
-                listaDiv.innerHTML = "";
-                
-                if (deptos.length === 0) {
-                    listaDiv.innerHTML = "<p style='color:#94a3b8;'>No hay nadie en casa (sin internos registrados).</p>";
-                    return;
-                }
-
-                deptos.forEach(d => {
-                    const div = document.createElement('div');
-                    div.id = `cont-${d}`;
-                    div.innerHTML = `<button class="btn" id="btn-${d}" onclick="tocarTimbre('${d}')">INTERNO ${d}</button>`;
-                    listaDiv.appendChild(div);
-                });
-            } catch (e) { listaDiv.innerHTML = "Error de conexión"; }
-        }
-
-        async function tocarTimbre(depto) {
-            const btn = document.getElementById(`btn-${depto}`);
-            const status = document.getElementById('status');
-            const cont = document.getElementById(`cont-${depto}`);
-            
-            btn.disabled = true;
-            status.innerText = "Llamando...";
-            status.className = "";
-
-            try {
-                const res = await fetch(`/api/timbre?depto=${depto}`);
-                if (res.ok) {
-                    status.className = "success";
-                    status.innerText = "✅ Aviso enviado. Aguarde.";
-
-                    // Crear la caja de chat si no existe
-                    if (!document.getElementById(`box-${depto}`)) {
-                        const box = document.createElement('div');
-                        box.id = `box-${depto}`;
-                        box.className = 'msg-box';
-                        box.innerHTML = `
-                            <input type="text" id="input-${depto}" placeholder="Escribí un mensaje...">
-                            <button class="btn btn-enviar" id="send-${depto}" onclick="enviarMensaje('${depto}')">Enviar</button>
-                        `;
-                        cont.appendChild(box);
-                    }
-
-                    iniciarEscucha(depto);
-
-                    // Timer visual de 30 segundos en el botón
-                    let segundos = 30; 
-                    const originalText = btn.innerText;
-                    const intervalo = setInterval(() => {
-                        segundos--;
-                        btn.innerText = `ESPERE ${segundos}s`;
-                        if (segundos <= 0) {
-                            clearInterval(intervalo);
-                            btn.disabled = false;
-                            btn.innerText = originalText;
-                        }
-                    }, 1000);
-                }
-            } catch (e) { status.innerText = "Error al llamar"; btn.disabled = false; }
-        }
-
-        async function enviarMensaje(depto) {
-            const input = document.getElementById(`input-${depto}`);
-            const btnSend = document.getElementById(`send-${depto}`);
-            const texto = input.value.trim();
-            
-            if (!texto) return;
-
-            btnSend.disabled = true;
-            try {
-                await fetch(`/api/timbre?depto=${depto}&msg=${encodeURIComponent(texto)}`);
-                input.value = ""; // Limpia el input para el próximo mensaje
-                document.getElementById('status').innerText = "✅ Mensaje enviado.";
-            } catch (e) { console.error("Error enviando"); }
-            btnSend.disabled = false;
-        }
-
-        function iniciarEscucha(depto) {
-            if (intervaloCheck) clearInterval(intervaloCheck);
-            
-            intervaloCheck = setInterval(async () => {
-                try {
-                    const res = await fetch(`/api/timbre?depto=${depto}&check=1`);
-                    const data = await res.json();
-                    
-                    if (data.msj) {
-                        const cuadro = document.getElementById('respuesta-vecino');
-                        const texto = document.getElementById('texto-respuesta');
-                        const label = document.getElementById('nombre-interno-rta');
-                        
-                        label.innerText = `Respuesta del Interno ${depto}:`;
-                        texto.innerText = `"${data.msj}"`;
-                        cuadro.style.display = 'block';
-
-                        // Mantiene la respuesta visible 20 segundos
-                        if (timeoutLimpieza) clearTimeout(timeoutLimpieza);
-                        timeoutLimpieza = setTimeout(() => {
-                            cuadro.style.display = 'none';
-                        }, 20000);
-                    }
-                } catch (e) { }
-            }, 3000);
-        }
-
-        window.onload = cargarBotones;
+        // ... (Aquí va el mismo script que ya teníamos en el paso anterior) ...
+        // Asegurate de copiar las funciones cargarBotones, tocarTimbre, enviarMensaje e iniciarEscucha.
     </script>
 </body>
 </html>
